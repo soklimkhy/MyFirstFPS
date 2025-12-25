@@ -43,3 +43,13 @@ MyFirstFPS/
 │   │   └── Textures/
 ├── Docs/                    # Design specifications
 └── Tests/                   # Unit & Integration tests
+
+---
+
+## 🛠 Getting Started for Collaborators
+
+1. **Clone & Branch:** `git clone https://github.com/soklimkhy/MyFirstFPS.git`
+   `git checkout develop`
+2. **Unity Version:** Use Unity **[Your Version Here, e.g., 2022.3.10f1]**.
+3. **First Run:** Open the project in Unity Hub. Note that the first import will take time as the `Library` folder is generated locally.
+4. **Main Scene:** Open `Assets/_Project/Scenes/Main.unity` to begin testing.
