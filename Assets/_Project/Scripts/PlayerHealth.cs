@@ -41,7 +41,7 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         isDead = true;
-
+        
         // 1. Show the Death Screen
         if (deathScreen != null) deathScreen.SetActive(true);
 
@@ -51,7 +51,7 @@ public class PlayerHealth : MonoBehaviour
 
         // 3. Optional: Disable player movement so they can't walk while dead
         GetComponent<PlayerMovement>().enabled = false;
-
+        
         Debug.Log("Player is Dead");
     }
 

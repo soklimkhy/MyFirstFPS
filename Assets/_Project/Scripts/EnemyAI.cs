@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.AI;
 
 public class EnemyAI : MonoBehaviour
 {
@@ -24,6 +25,7 @@ public class EnemyAI : MonoBehaviour
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
+        player = GameObject.FindGameObjectWithTag("Player").transform;
 
         // Find the player by Tag
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
