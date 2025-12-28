@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
+using UnityEngine.UI; // Required for UI Text
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -8,8 +8,8 @@ public class PlayerHealth : MonoBehaviour
     private float currentHealth;
 
     [Header("UI References")]
-    public Slider healthSlider;
-    public GameObject deathScreen; // Drag your DeathScreen panel here
+    public Text healthText;        // Use "public TMP_Text" if using TextMeshPro
+    public GameObject deathScreen;
 
     private bool isDead = false;
 
@@ -35,27 +35,26 @@ public class PlayerHealth : MonoBehaviour
 
     void UpdateUI()
     {
-        if (healthSlider != null) healthSlider.value = currentHealth / maxHealth;
+        // This updates the label on your screen
+        if (healthText != null)
+        {
+            healthText.text = "HP: " + currentHealth.ToString();
+        }
     }
 
     void Die()
     {
         isDead = true;
-        
-        // 1. Show the Death Screen
         if (deathScreen != null) deathScreen.SetActive(true);
 
-        // 2. Unlock the mouse so we can click the button
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // 3. Optional: Disable player movement so they can't walk while dead
-        GetComponent<PlayerMovement>().enabled = false;
-        
-        Debug.Log("Player is Dead");
+        // Disable player movement script
+        if (GetComponent<PlayerMovement>() != null)
+            GetComponent<PlayerMovement>().enabled = false;
     }
 
-    // This function will be called by the Button
     public void RestartGame()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
