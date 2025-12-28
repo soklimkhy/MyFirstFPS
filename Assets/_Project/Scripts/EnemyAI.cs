@@ -25,19 +25,21 @@ public class EnemyAI : MonoBehaviour
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
-        player = GameObject.FindGameObjectWithTag("Player").transform;
 
-        // Find the player by Tag
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
         {
             player = playerObj.transform;
         }
 
-        // Start patrolling if we have points
-        if (patrolPoints.Length > 0)
+        // This check prevents the "UnassignedReference" error
+        if (patrolPoints != null && patrolPoints.Length > 0 && patrolPoints[currentPatrolIndex] != null)
         {
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+        }
+        else
+        {
+            Debug.LogWarning("EnemyAI: No patrol points assigned! The bot will stay idle.");
         }
     }
 
