@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI; // Required for UI Text
+using UnityEngine.UI; 
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -8,7 +8,8 @@ public class PlayerHealth : MonoBehaviour
     private float currentHealth;
 
     [Header("UI References")]
-    public Text healthText;        // Use "public TMP_Text" if using TextMeshPro
+    public Image healthBarFill;  
+    public Text healthText;      
     public GameObject deathScreen;
 
     private bool isDead = false;
@@ -17,28 +18,28 @@ public class PlayerHealth : MonoBehaviour
     {
         currentHealth = maxHealth;
         UpdateUI();
-        if (deathScreen != null) deathScreen.SetActive(false);
     }
 
     public void TakeDamage(float amount)
     {
         if (isDead) return;
-
         currentHealth -= amount;
         UpdateUI();
-
-        if (currentHealth <= 0)
-        {
-            Die();
-        }
+        if (currentHealth <= 0) Die();
     }
 
     void UpdateUI()
     {
-        // This updates the label on your screen
+        // Update Text (This works for you)
         if (healthText != null)
+            healthText.text = currentHealth.ToString();
+
+        // Update Bar (This is the part to fix)
+        if (healthBarFill != null)
         {
-            healthText.text = "HP: " + currentHealth.ToString();
+            // FillAmount needs a decimal between 0.0 and 1.0
+            // currentHealth (80) / maxHealth (100) = 0.8f
+            healthBarFill.fillAmount = currentHealth / maxHealth;
         }
     }
 
