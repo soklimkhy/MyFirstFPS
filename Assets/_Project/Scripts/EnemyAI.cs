@@ -1,111 +1,118 @@
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.AI;
 
+[RequireComponent(typeof(NavMeshAgent))] // Ensures the agent is always there
 public class EnemyAI : MonoBehaviour
 {
-    public NavMeshAgent agent;
-    private Transform player;
+    // Professional Naming: Use PascalCase for public fields
+    public NavMeshAgent Agent { get; private set; }
 
     [Header("AI Settings")]
-    public float detectionRange = 10f;    // Range to start chasing
-    public float attackRange = 2f;       // Range to deal damage
-    public float damage = 20f;           // How much health to take
-    public float attackSpeed = 1.5f;     // Seconds between attacks
-    private float nextAttackTime = 0f;
+    public float DetectionRange = 10f;
+    public float AttackRange = 2f;
+    public float DamageAmount = 20f;
+    public float AttackSpeed = 1.5f;
 
     [Header("Patrol Settings")]
-    public Transform[] patrolPoints;     // Array of points to walk between
-    private int currentPatrolIndex = 0;
+    public Transform[] PatrolPoints;
+
+    private Transform m_Player;
+    private float m_NextAttackTime = 0f;
+    private int m_CurrentPatrolIndex = 0;
 
     // CS Concept: Enum for State Machine
-    public enum AIState { Patrolling, Chasing }
-    public AIState currentState = AIState.Patrolling;
+    public enum AIState { Patrolling, Chasing, Attacking }
+    public AIState CurrentState { get; private set; } = AIState.Patrolling;
+
+    void Awake()
+    {
+        Agent = GetComponent<NavMeshAgent>();
+    }
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-
+        // Finding objects by tag is okay for MVP, but in Enterprise we often 
+        // use a "GameManager" or "PlayerManager" singleton to get the reference.
         GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
-        {
-            player = playerObj.transform;
-        }
+        if (playerObj != null) m_Player = playerObj.transform;
 
-        // This check prevents the "UnassignedReference" error
-        if (patrolPoints != null && patrolPoints.Length > 0 && patrolPoints[currentPatrolIndex] != null)
-        {
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
-        }
-        else
-        {
-            Debug.LogWarning("EnemyAI: No patrol points assigned! The bot will stay idle.");
-        }
+        InitializePatrol();
     }
 
     void Update()
     {
-        if (player == null) return;
+        if (m_Player == null) return;
 
-        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
+        float distanceToPlayer = Vector3.Distance(transform.position, m_Player.position);
+        UpdateState(distanceToPlayer);
+        ExecuteState();
+    }
 
-        // State Switching Logic
-        if (distanceToPlayer < detectionRange)
-        {
-            currentState = AIState.Chasing;
-        }
+    private void UpdateState(float distance)
+    {
+        // Simple and clear state transition logic
+        if (distance <= AttackRange)
+            CurrentState = AIState.Attacking;
+        else if (distance <= DetectionRange)
+            CurrentState = AIState.Chasing;
         else
-        {
-            currentState = AIState.Patrolling;
-        }
+            CurrentState = AIState.Patrolling;
+    }
 
-        // Execute logic based on State
-        switch (currentState)
+    private void ExecuteState()
+    {
+        switch (CurrentState)
         {
             case AIState.Patrolling:
-                Patrol();
+                PerformPatrol();
                 break;
             case AIState.Chasing:
-                ChaseAndAttack(distanceToPlayer);
+                Agent.SetDestination(m_Player.position);
+                break;
+            case AIState.Attacking:
+                PerformAttack();
                 break;
         }
     }
 
-    void Patrol()
+    private void PerformPatrol()
     {
-        if (patrolPoints.Length == 0) return;
+        if (PatrolPoints == null || PatrolPoints.Length == 0) return;
 
-        // Move to next point if close enough to current one
-        if (!agent.pathPending && agent.remainingDistance < 0.5f)
+        if (!Agent.pathPending && Agent.remainingDistance < 0.5f)
         {
-            currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Length;
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+            m_CurrentPatrolIndex = (m_CurrentPatrolIndex + 1) % PatrolPoints.Length;
+            Agent.SetDestination(PatrolPoints[m_CurrentPatrolIndex].position);
         }
     }
 
-    void ChaseAndAttack(float distance)
+    private void PerformAttack()
     {
-        agent.SetDestination(player.position);
+        // Stop moving while attacking for "AK Online" style recoil/aim
+        Agent.SetDestination(transform.position);
 
-        // Attack Logic
-        if (distance <= attackRange && Time.time >= nextAttackTime)
+        if (Time.time >= m_NextAttackTime)
         {
-            PlayerHealth pHealth = player.GetComponent<PlayerHealth>();
+            PlayerHealth pHealth = m_Player.GetComponent<PlayerHealth>();
             if (pHealth != null)
             {
-                pHealth.TakeDamage(damage);
-                nextAttackTime = Time.time + attackSpeed;
-                Debug.Log("Bot Hit the Player!");
+                pHealth.TakeDamage(DamageAmount);
+                m_NextAttackTime = Time.time + AttackSpeed;
             }
         }
     }
 
-    // This helps you see the detection range in the Scene view
+    private void InitializePatrol()
+    {
+        if (PatrolPoints != null && PatrolPoints.Length > 0)
+            Agent.SetDestination(PatrolPoints[0].position);
+    }
+
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
+        Gizmos.DrawWireSphere(transform.position, DetectionRange);
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
+        Gizmos.DrawWireSphere(transform.position, AttackRange);
     }
 }

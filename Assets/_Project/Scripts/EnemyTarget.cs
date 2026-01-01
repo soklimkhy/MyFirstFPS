@@ -1,24 +1,32 @@
 using UnityEngine;
+using System; // Required for Action
 
 public class EnemyTarget : MonoBehaviour
 {
-    public float health = 50f;
+    public float MaxHealth = 50f;
+    private float m_CurrentHealth;
+
+    // Professional Event: Allows other scripts to "listen" for death
+    public static event Action OnEnemyDeath;
+
+    void Start()
+    {
+        m_CurrentHealth = MaxHealth;
+    }
 
     public void TakeDamage(float amount)
     {
-        health -= amount;
-        Debug.Log("Enemy hit! Health remaining: " + health);
+        m_CurrentHealth -= amount;
 
-        if (health <= 0f)
+        if (m_CurrentHealth <= 0f)
         {
             Die();
         }
     }
 
-    void Die()
+    private void Die()
     {
-        // For now, just destroy the bot. Later you can add an explosion!
+        OnEnemyDeath?.Invoke(); // Notify whoever is listening
         Destroy(gameObject);
-        Debug.Log("Enemy Destroyed!");
     }
 }
