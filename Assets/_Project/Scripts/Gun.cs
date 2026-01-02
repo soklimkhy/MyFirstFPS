@@ -111,7 +111,7 @@ public class Gun : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(fpsCam.transform.position, fpsCam.transform.forward, out hit, range))
         {
-            Debug.Log("Hit: " + hit.transform.name);
+            Debug.Log("Hit: " + hit.transform.name); // Check the console!
 
             if (impactEffectPrefab != null)
             {
@@ -119,10 +119,14 @@ public class Gun : MonoBehaviour
                 Destroy(impactGO, 2f);
             }
 
-            EnemyTarget target = hit.transform.GetComponent<EnemyTarget>();
-            if (target != null)
+            // --- THE FIX IS HERE ---
+            // Changed from GetComponent to GetComponentInParent
+            EnemyHealth enemy = hit.transform.GetComponentInParent<EnemyHealth>();
+            // -----------------------
+
+            if (enemy != null)
             {
-                target.TakeDamage(damage);
+                enemy.TakeDamage(damage);
             }
         }
     }

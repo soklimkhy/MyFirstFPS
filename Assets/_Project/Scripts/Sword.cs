@@ -92,10 +92,15 @@ public class Sword : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(fpsCam.transform.position, fpsCam.transform.forward, out hit, range))
         {
-            EnemyTarget target = hit.transform.GetComponent<EnemyTarget>();
+            // --- THE FIX IS HERE ---
+            // Changed from GetComponent to GetComponentInParent
+            EnemyHealth target = hit.transform.GetComponentInParent<EnemyHealth>();
+            // -----------------------
+
             if (target != null)
             {
                 target.TakeDamage(dmg);
+
                 if (bloodEffectPrefab != null)
                 {
                     Instantiate(bloodEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
