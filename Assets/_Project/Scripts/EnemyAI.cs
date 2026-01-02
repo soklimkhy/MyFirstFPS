@@ -50,13 +50,20 @@ public class EnemyAI : MonoBehaviour
 
     private void UpdateState(float distance)
     {
-        // Simple and clear state transition logic
+        // 1. If very close, stay in Attacking state
         if (distance <= AttackRange)
+        {
             CurrentState = AIState.Attacking;
-        else if (distance <= DetectionRange)
-            CurrentState = AIState.Chasing;
+        }
+        // 2. Otherwise, always Chase the player (No distance limit)
         else
-            CurrentState = AIState.Patrolling;
+        {
+            CurrentState = AIState.Chasing;
+        }
+
+        // Note: Patrolling is now bypassed because we always want to Chase.
+        // If you still want Patrol to happen sometimes, you would need a condition 
+        // like 'if (playerIsHidden)'.
     }
 
     private void ExecuteState()
