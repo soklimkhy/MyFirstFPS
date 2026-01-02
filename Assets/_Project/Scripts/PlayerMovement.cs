@@ -6,8 +6,8 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement Settings")]
     public float speed = 12f;
-    public float gravity = -20f; // Standard Earth-like gravity
-    public float jumpHeight = 2f;
+    public float gravity = -20f;
+    public float jumpHeight = 2.5f;
 
     [Header("Look Settings")]
     public float mouseSensitivity = 100f;
@@ -18,73 +18,83 @@ public class PlayerMovement : MonoBehaviour
     public WeaponSwitcher weaponSwitcher;
     public float swordSpeedMultiplier = 1.2f;
 
-    [Header("Animation")]
+    [Header("Animation & Skin")]
     public Animator skinAnimator;
+    public GameObject thirdPersonCamera;
+    private bool isThirdPerson = false;
 
-    private Vector3 velocity;
+    [Header("Safety Settings")]
+    public float fallLimit = -20f; // If Y position is lower than this, teleport back
+    public Vector3 spawnPoint = new Vector3(0, 5, 0);
+
+    private Vector3 playerVelocity;
     private bool isGrounded;
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
 
-        // CRITICAL SETTINGS for CharacterController
-        if (controller != null)
-        {
-            controller.skinWidth = 0.08f; // Prevents jitter and falling
-            controller.minMoveDistance = 0f;
-        }
+        if (controller == null) controller = GetComponent<CharacterController>();
+        if (weaponSwitcher == null) weaponSwitcher = GetComponentInChildren<WeaponSwitcher>();
+        if (fpsCam == null && Camera.main != null) fpsCam = Camera.main.transform;
+
+        // FIXED VALUES: These must be exactly this for imported maps
+        controller.skinWidth = 0.08f;
+        controller.minMoveDistance = 0f;
+        controller.center = new Vector3(0, 1, 0); // Sets the capsule feet correctly
     }
 
     void Update()
     {
-        // 1. Precise Ground Check
+        // 1. SAFETY TELEPORT (If you fall through the map)
+        if (transform.position.y < fallLimit)
+        {
+            TeleportToSafety();
+            return;
+        }
+
+        // 2. GROUND CHECK
         isGrounded = controller.isGrounded;
 
-        if (isGrounded && velocity.y < 0)
+        if (isGrounded && playerVelocity.y < 0)
         {
-            // Reset velocity but keep a tiny downward force to stay "glued"
-            velocity.y = -2f;
+            playerVelocity.y = -2f;
         }
 
-        // 2. Mouse Look
+        // 3. MOUSE LOOK
         HandleLook();
 
-        // 3. Horizontal Movement Input
+        // 4. MOVEMENT INPUT
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
+        float currentSpeed = (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1) ? speed * swordSpeedMultiplier : speed;
 
-        float moveSpeed = speed;
-        if (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1)
-        {
-            moveSpeed *= swordSpeedMultiplier;
-        }
-
-        // Calculate horizontal direction
-        Vector3 move = transform.right * x + transform.forward * z;
-
-        // 4. Jumping
+        // 5. JUMPING
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
-            velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // 5. Apply Gravity
-        velocity.y += gravity * Time.deltaTime;
+        // 6. APPLY GRAVITY
+        playerVelocity.y += gravity * Time.deltaTime;
 
-        // 6. THE FIX: Combine and Move ONCE
-        // Horizontal (move * moveSpeed) + Vertical (velocity)
-        Vector3 finalFrameMotion = (move * moveSpeed) + velocity;
+        // 7. COMBINED MOVEMENT
+        Vector3 moveDirection = transform.right * x + transform.forward * z;
+        Vector3 finalMove = (moveDirection * currentSpeed) + playerVelocity;
 
-        // Final move call
-        controller.Move(finalFrameMotion * Time.deltaTime);
+        controller.Move(finalMove * Time.deltaTime);
 
-        // 7. Animation
-        if (skinAnimator != null)
-        {
-            float horizontalSpeed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
-            skinAnimator.SetFloat("Speed", horizontalSpeed);
-        }
+        // 8. UTILITY & ANIMATION
+        HandleViewToggle();
+        UpdateSkinAnimations();
+    }
+
+    private void TeleportToSafety()
+    {
+        controller.enabled = false; // Must disable controller to move transform manually
+        transform.position = spawnPoint;
+        playerVelocity = Vector3.zero;
+        controller.enabled = true;
     }
 
     private void HandleLook()
@@ -92,11 +102,28 @@ public class PlayerMovement : MonoBehaviour
         if (fpsCam == null) return;
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
-
         xRotation -= mouseY;
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-
         fpsCam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
         transform.Rotate(Vector3.up * mouseX);
+    }
+
+    private void HandleViewToggle()
+    {
+        if (Input.GetKeyDown(KeyCode.V))
+        {
+            isThirdPerson = !isThirdPerson;
+            if (thirdPersonCamera != null) thirdPersonCamera.SetActive(isThirdPerson);
+        }
+    }
+
+    private void UpdateSkinAnimations()
+    {
+        if (skinAnimator != null)
+        {
+            float horizontalSpeed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
+            skinAnimator.SetFloat("Speed", horizontalSpeed);
+            skinAnimator.SetBool("isGrounded", isGrounded);
+        }
     }
 }
