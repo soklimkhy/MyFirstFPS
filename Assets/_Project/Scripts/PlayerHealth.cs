@@ -8,8 +8,11 @@ public class PlayerHealth : MonoBehaviour
     private float currentHealth;
 
     [Header("UI References")]
-    public Slider healthSlider;
-    public GameObject deathScreen; // Drag your DeathScreen panel here
+    public Image healthBarFill;
+    public Text healthText;
+    // Note: We don't need 'deathScreen' here anymore because GameManager handles it,
+    // but I left it in case you want a specific red flash effect.
+    public GameObject deathScreen;
 
     private bool isDead = false;
 
@@ -17,47 +20,44 @@ public class PlayerHealth : MonoBehaviour
     {
         currentHealth = maxHealth;
         UpdateUI();
-        if (deathScreen != null) deathScreen.SetActive(false);
     }
 
     public void TakeDamage(float amount)
     {
         if (isDead) return;
-
         currentHealth -= amount;
         UpdateUI();
-
-        if (currentHealth <= 0)
-        {
-            Die();
-        }
+        if (currentHealth <= 0) Die();
     }
 
     void UpdateUI()
     {
-        if (healthSlider != null) healthSlider.value = currentHealth / maxHealth;
+        if (healthText != null)
+            healthText.text = currentHealth.ToString();
+
+        if (healthBarFill != null)
+        {
+            healthBarFill.fillAmount = currentHealth / maxHealth;
+        }
     }
 
     void Die()
     {
         isDead = true;
-        
-        // 1. Show the Death Screen
+
+        // --- UPDATED: Tell GameManager we died ---
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.PlayerDied();
+        }
+        // ----------------------------------------
+
+        // If you kept the specific death screen logic locally:
         if (deathScreen != null) deathScreen.SetActive(true);
 
-        // 2. Unlock the mouse so we can click the button
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-
-        // 3. Optional: Disable player movement so they can't walk while dead
-        GetComponent<PlayerMovement>().enabled = false;
-        
-        Debug.Log("Player is Dead");
-    }
-
-    // This function will be called by the Button
-    public void RestartGame()
-    {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        // Disable player movement
+        // (Make sure the script name 'PlayerMovement' matches your actual script name)
+        MonoBehaviour movementScript = GetComponent<MonoBehaviour>();
+        // Or specifically: GetComponent<PlayerMovement>().enabled = false;
     }
 }

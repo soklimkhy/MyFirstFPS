@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.Collections;
-using UnityEngine.UI; // <-- NEW: Required for UI Text
+using UnityEngine.UI;
 
 public class Gun : MonoBehaviour
 {
@@ -19,13 +19,18 @@ public class Gun : MonoBehaviour
     [Header("Effects & Recoil")]
     public Camera fpsCam;
     public ParticleSystem muzzleFlash;
-    public Text ammoDisplay; // <-- NEW: Drag your UI Text here in Inspector
+    public Text ammoDisplay;
     public float kickbackAmount = 0.1f;
     public float returnSpeed = 5f;
 
     [Header("Impact Effects")]
     public GameObject impactEffectPrefab;
 
+    [Header("Audio Settings")]
+    public AudioSource gunSource;
+    public AudioClip shootSound;
+    public AudioClip reloadSound;
+    public AudioClip emptySound;
 
     private Vector3 gunOriginalPos;
 
@@ -33,11 +38,19 @@ public class Gun : MonoBehaviour
     {
         currentAmmo = maxAmmo;
         gunOriginalPos = transform.localPosition;
+
+        // CS Student Tip: Initialize the AudioSource settings via code to be 100% sure
+        if (gunSource != null)
+        {
+            gunSource.playOnAwake = false;
+            gunSource.loop = false;
+            gunSource.priority = 0; // Highest priority
+        }
     }
 
     void Start()
     {
-        UpdateAmmoUI(); // Set the initial ammo text
+        UpdateAmmoUI();
     }
 
     void OnEnable()
@@ -66,10 +79,27 @@ public class Gun : MonoBehaviour
 
     void Shoot()
     {
-        if (currentAmmo <= 0) return;
+        if (currentAmmo <= 0)
+        {
+            if (gunSource != null && emptySound != null)
+                gunSource.PlayOneShot(emptySound);
+            return;
+        }
+
+        Debug.Log("Firing Bullet #" + currentAmmo);
+
+        // --- ENHANCED AUDIO TRIGGER ---
+        if (gunSource != null && shootSound != null)
+        {
+            // Randomize pitch slightly to prevent "Machine Gun Fatigue" (ear tiredness)
+            gunSource.pitch = Random.Range(0.95f, 1.05f);
+
+            // Using PlayOneShot allows sounds to OVERLAP instead of cutting each other off
+            gunSource.PlayOneShot(shootSound, 1.0f);
+        }
 
         currentAmmo--;
-        UpdateAmmoUI(); // <-- NEW: Update UI after every shot
+        UpdateAmmoUI();
 
         if (muzzleFlash != null)
         {
@@ -81,13 +111,22 @@ public class Gun : MonoBehaviour
         RaycastHit hit;
         if (Physics.Raycast(fpsCam.transform.position, fpsCam.transform.forward, out hit, range))
         {
-            Debug.Log("Hit: " + hit.transform.name);
-            EnemyTarget target = hit.transform.GetComponent<EnemyTarget>();
-            GameObject impactGO = Instantiate(impactEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
-            Destroy(impactGO, 2f);
-            if (target != null)
+            Debug.Log("Hit: " + hit.transform.name); // Check the console!
+
+            if (impactEffectPrefab != null)
             {
-                target.TakeDamage(damage);
+                GameObject impactGO = Instantiate(impactEffectPrefab, hit.point, Quaternion.LookRotation(hit.normal));
+                Destroy(impactGO, 2f);
+            }
+
+            // --- THE FIX IS HERE ---
+            // Changed from GetComponent to GetComponentInParent
+            EnemyHealth enemy = hit.transform.GetComponentInParent<EnemyHealth>();
+            // -----------------------
+
+            if (enemy != null)
+            {
+                enemy.TakeDamage(damage);
             }
         }
     }
@@ -96,9 +135,13 @@ public class Gun : MonoBehaviour
     {
         isReloading = true;
 
-        // <-- NEW: Visual feedback for reloading
-        if (ammoDisplay != null) ammoDisplay.text = "RELOADING...";
+        if (gunSource != null && reloadSound != null)
+        {
+            gunSource.pitch = 1.0f;
+            gunSource.PlayOneShot(reloadSound);
+        }
 
+        if (ammoDisplay != null) ammoDisplay.text = "RELOADING...";
         transform.localPosition += Vector3.down * 0.2f;
 
         yield return new WaitForSeconds(reloadTime);
@@ -107,10 +150,9 @@ public class Gun : MonoBehaviour
         currentAmmo = maxAmmo;
         isReloading = false;
 
-        UpdateAmmoUI(); // <-- NEW: Reset UI after reload
+        UpdateAmmoUI();
     }
 
-    // Helper function to keep UI updated
     void UpdateAmmoUI()
     {
         if (ammoDisplay != null)
