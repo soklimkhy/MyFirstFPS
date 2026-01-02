@@ -6,8 +6,8 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Movement Settings")]
     public float speed = 12f;
-    public float gravity = -25f; // Stronger gravity for FPS feel
-    public float jumpHeight = 2.5f;
+    public float gravity = -20f; // Standard Earth-like gravity
+    public float jumpHeight = 2f;
 
     [Header("Look Settings")]
     public float mouseSensitivity = 100f;
@@ -28,37 +28,39 @@ public class PlayerMovement : MonoBehaviour
     {
         Cursor.lockState = CursorLockMode.Locked;
 
-        // REPO FIX: Ensure we start slightly above ground to prevent "Collider Snagging"
+        // CRITICAL SETTINGS for CharacterController
         if (controller != null)
         {
-            controller.stepOffset = 0.3f;
-            controller.skinWidth = 0.08f; // The "Magic" value to stop falling
+            controller.skinWidth = 0.08f; // Prevents jitter and falling
+            controller.minMoveDistance = 0f;
         }
     }
 
     void Update()
     {
-        // 1. Better Ground Check
+        // 1. Precise Ground Check
         isGrounded = controller.isGrounded;
 
         if (isGrounded && velocity.y < 0)
         {
-            velocity.y = -2f; // Clamp velocity when touching ground
+            // Reset velocity but keep a tiny downward force to stay "glued"
+            velocity.y = -2f;
         }
 
         // 2. Mouse Look
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
-        xRotation -= mouseY;
-        xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-        fpsCam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-        transform.Rotate(Vector3.up * mouseX);
+        HandleLook();
 
-        // 3. Horizontal Movement
+        // 3. Horizontal Movement Input
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
-        float moveSpeed = (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1) ? speed * swordSpeedMultiplier : speed;
 
+        float moveSpeed = speed;
+        if (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1)
+        {
+            moveSpeed *= swordSpeedMultiplier;
+        }
+
+        // Calculate horizontal direction
         Vector3 move = transform.right * x + transform.forward * z;
 
         // 4. Jumping
@@ -67,18 +69,34 @@ public class PlayerMovement : MonoBehaviour
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // 5. Gravity
+        // 5. Apply Gravity
         velocity.y += gravity * Time.deltaTime;
 
-        // REPO FIX: Combine movement into ONE call to prevent physics tunneling
-        Vector3 finalMovement = (move * moveSpeed) + velocity;
-        controller.Move(finalMovement * Time.deltaTime);
+        // 6. THE FIX: Combine and Move ONCE
+        // Horizontal (move * moveSpeed) + Vertical (velocity)
+        Vector3 finalFrameMotion = (move * moveSpeed) + velocity;
 
-        // 6. Animation
+        // Final move call
+        controller.Move(finalFrameMotion * Time.deltaTime);
+
+        // 7. Animation
         if (skinAnimator != null)
         {
             float horizontalSpeed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
             skinAnimator.SetFloat("Speed", horizontalSpeed);
         }
+    }
+
+    private void HandleLook()
+    {
+        if (fpsCam == null) return;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+
+        xRotation -= mouseY;
+        xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+
+        fpsCam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        transform.Rotate(Vector3.up * mouseX);
     }
 }
