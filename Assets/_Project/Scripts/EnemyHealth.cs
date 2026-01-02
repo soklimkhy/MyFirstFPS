@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // Needed for UI
+using UnityEngine.UI;
 using UnityEngine.AI;
 using System.Collections;
 
@@ -10,8 +10,8 @@ public class EnemyHealth : MonoBehaviour
     private float currentHealth;
 
     [Header("UI")]
-    public Image healthBarFill; // Drag the Green "Fill" Image here
-    public GameObject healthBarCanvas; // Drag the Canvas here to hide it when dead
+    public Image healthBarFill;
+    public GameObject healthBarCanvas;
 
     [Header("Respawn")]
     public float respawnDelay = 3f;
@@ -28,12 +28,11 @@ public class EnemyHealth : MonoBehaviour
         enemyCollider = GetComponent<Collider>();
         enemyRenderers = GetComponentsInChildren<Renderer>();
 
-        UpdateHealthUI(); // Set bar to full at start
+        UpdateHealthUI();
     }
 
     void Update()
     {
-        // Optional: Make the health bar always face the player camera
         if (healthBarCanvas != null)
         {
             healthBarCanvas.transform.LookAt(Camera.main.transform);
@@ -55,20 +54,24 @@ public class EnemyHealth : MonoBehaviour
     {
         if (healthBarFill != null)
         {
-            // Calculate percentage (0 to 1)
             healthBarFill.fillAmount = currentHealth / maxHealth;
         }
     }
 
     void Die()
     {
-        if (GameManager.Instance != null) GameManager.Instance.AddKill();
+        // --- UPDATED: Add Score ---
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddKill();
+        }
+        // --------------------------
+
         StartCoroutine(RespawnRoutine());
     }
 
     IEnumerator RespawnRoutine()
     {
-        // Hide enemy and health bar
         enemyCollider.enabled = false;
         ToggleVisuals(false);
         if (healthBarCanvas != null) healthBarCanvas.SetActive(false);
@@ -76,12 +79,10 @@ public class EnemyHealth : MonoBehaviour
 
         yield return new WaitForSeconds(respawnDelay);
 
-        // Reset
         transform.position = initialPosition;
         currentHealth = maxHealth;
         UpdateHealthUI();
 
-        // Show enemy and health bar
         enemyCollider.enabled = true;
         ToggleVisuals(true);
         if (healthBarCanvas != null) healthBarCanvas.SetActive(true);

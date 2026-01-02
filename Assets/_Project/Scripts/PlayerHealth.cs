@@ -1,6 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI; 
+using UnityEngine.UI;
 
 public class PlayerHealth : MonoBehaviour
 {
@@ -8,8 +8,10 @@ public class PlayerHealth : MonoBehaviour
     private float currentHealth;
 
     [Header("UI References")]
-    public Image healthBarFill;  
-    public Text healthText;      
+    public Image healthBarFill;
+    public Text healthText;
+    // Note: We don't need 'deathScreen' here anymore because GameManager handles it,
+    // but I left it in case you want a specific red flash effect.
     public GameObject deathScreen;
 
     private bool isDead = false;
@@ -30,15 +32,11 @@ public class PlayerHealth : MonoBehaviour
 
     void UpdateUI()
     {
-        // Update Text (This works for you)
         if (healthText != null)
             healthText.text = currentHealth.ToString();
 
-        // Update Bar (This is the part to fix)
         if (healthBarFill != null)
         {
-            // FillAmount needs a decimal between 0.0 and 1.0
-            // currentHealth (80) / maxHealth (100) = 0.8f
             healthBarFill.fillAmount = currentHealth / maxHealth;
         }
     }
@@ -46,18 +44,20 @@ public class PlayerHealth : MonoBehaviour
     void Die()
     {
         isDead = true;
+
+        // --- UPDATED: Tell GameManager we died ---
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.PlayerDied();
+        }
+        // ----------------------------------------
+
+        // If you kept the specific death screen logic locally:
         if (deathScreen != null) deathScreen.SetActive(true);
 
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
-
-        // Disable player movement script
-        if (GetComponent<PlayerMovement>() != null)
-            GetComponent<PlayerMovement>().enabled = false;
-    }
-
-    public void RestartGame()
-    {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        // Disable player movement
+        // (Make sure the script name 'PlayerMovement' matches your actual script name)
+        MonoBehaviour movementScript = GetComponent<MonoBehaviour>();
+        // Or specifically: GetComponent<PlayerMovement>().enabled = false;
     }
 }

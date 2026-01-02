@@ -1,34 +1,97 @@
 using UnityEngine;
-using TMPro; // Needed for the UI
+using UnityEngine.SceneManagement;
+using UnityEngine.UI; // Needed for standard UI
+using TMPro; // Needed for TextMeshPro
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance; // Singleton pattern for easy access
+    public static GameManager Instance;
 
-    [Header("UI Settings")]
-    public TMP_Text scoreText;
-    private int killCount = 0;
+    [Header("Game Settings")]
+    public int targetKills = 20; // Set this to 20 in Inspector
+    private int currentKills = 0;
+
+    [Header("UI References")]
+    public TMP_Text killCountText; // Drag your "0/20" Text here
+    public GameObject winPanel;    // Drag "You Win" Panel here
+    public GameObject losePanel;   // Drag "Game Over" Panel here
+
+    private bool gameEnded = false;
 
     void Awake()
     {
-        // ensuring there is only one Game Manager
+        // Singleton pattern
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
     void Start()
     {
-        UpdateScoreUI();
+        Time.timeScale = 1; // Unpause game
+        if (winPanel != null) winPanel.SetActive(false);
+        if (losePanel != null) losePanel.SetActive(false);
+        UpdateUI();
     }
 
     public void AddKill()
     {
-        killCount++;
-        UpdateScoreUI();
+        if (gameEnded) return;
+
+        currentKills++;
+        UpdateUI();
+
+        if (currentKills >= targetKills)
+        {
+            WinGame();
+        }
     }
 
-    void UpdateScoreUI()
+    public void PlayerDied()
     {
-        scoreText.text = "Kills: " + killCount;
+        if (gameEnded) return;
+        LoseGame();
+    }
+
+    void UpdateUI()
+    {
+        if (killCountText != null)
+        {
+            killCountText.text = "Kills: " + currentKills + " / " + targetKills;
+        }
+    }
+
+    void WinGame()
+    {
+        gameEnded = true;
+        Debug.Log("YOU WIN!");
+        if (winPanel != null) winPanel.SetActive(true);
+        UnlockCursor();
+        Time.timeScale = 0; // Pause game
+    }
+
+    void LoseGame()
+    {
+        gameEnded = true;
+        Debug.Log("GAME OVER");
+        if (losePanel != null) losePanel.SetActive(true);
+        UnlockCursor();
+        Time.timeScale = 0; // Pause game
+    }
+
+    void UnlockCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void RestartGame()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    public void QuitGame()
+    {
+        Application.Quit();
+        Debug.Log("Quitting Game...");
     }
 }
