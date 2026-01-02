@@ -8,6 +8,13 @@ A modular First-Person Shooter framework built with a focus on clean architectur
 
 ---
 
+## 🎥 Gameplay Demo
+Click the image below to watch the gameplay showcase:
+
+[![MyFirstFPS Gameplay](https://img.youtube.com/vi/uKgqqdW4T5I/maxresdefault.jpg)](https://www.youtube.com/watch?v=uKgqqdW4T5I)
+
+---
+
 ## 🚀 Overview
 **MyFirstFPS** is more than just a shooter; it is an exploration into professional software engineering within game development. The goal is to create a robust system for weapon handling, player movement, and AI interaction that is easy to extend and test.
 
@@ -24,32 +31,3 @@ A modular First-Person Shooter framework built with a focus on clean architectur
 * **Game Engine:** Unity (v2022.3+ recommended)
 * **Version Control:** GitHub (Following GitFlow standards)
 * **Patterns:** MVP, Singleton, Command Pattern.
-
----
-
-## 📂 Project Structure
-Following enterprise standards, the source code is organized by responsibility:
-
-```text
-MyFirstFPS/
-├── Assets/
-│   ├── _Project/            # All custom code/assets
-│   │   ├── Scripts/
-│   │   │   ├── Core/        # Game loop & Managers
-│   │   │   ├── Player/      # Movement & Input
-│   │   │   ├── Weapons/     # Combat logic
-│   │   │   └── UI/          # View controllers
-│   │   ├── Prefabs/
-│   │   └── Textures/
-├── Docs/                    # Design specifications
-└── Tests/                   # Unit & Integration tests
-
----
-
-## 🛠 Getting Started for Collaborators
-
-1. **Clone & Branch:** `git clone https://github.com/soklimkhy/MyFirstFPS.git`
-   `git checkout develop`
-2. **Unity Version:** Use Unity **[Your Version Here, e.g., 2022.3.10f1]**.
-3. **First Run:** Open the project in Unity Hub. Note that the first import will take time as the `Library` folder is generated locally.
-4. **Main Scene:** Open `Assets/_Project/Scenes/Main.unity` to begin testing.
