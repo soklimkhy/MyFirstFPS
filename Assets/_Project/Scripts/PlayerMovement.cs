@@ -1,147 +1,167 @@
 using UnityEngine;
 
+/// <summary>
+/// Improved CharacterController-based player movement:
+/// - Robust ground check (Physics.CheckSphere fallback to controller.isGrounded)
+/// - Smooth crouch (height & center interpolation)
+/// - Guards for missing references
+/// - Keeps feet roughly in place while changing height
+/// - Clear separation of look / movement / gravity
+/// </summary>
+[RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("References")]
     public CharacterController controller;
+    public Transform cameraTransform; // assign main camera (child) in inspector
+    [Tooltip("A small Transform placed roughly at the player's feet for ground checks. If null, a temporary point will be used.")]
+    public Transform groundCheck;
 
     [Header("Movement Settings")]
     public float speed = 12f;
-    public float gravity = -30f; // Made gravity stronger for a "heavier" feel
-    public float jumpHeight = 2.5f;
+    public float gravity = -19.62f;
+    public float jumpHeight = 2f;
 
     [Header("Crouch Settings")]
-    public float crouchHeight = 1f;
     public float standingHeight = 2f;
+    public float crouchHeight = 1f;
     public float crouchSpeed = 6f;
+    [Tooltip("Controls how fast the CharacterController height interpolates")]
+    public float heightChangeSpeed = 8f;
 
     [Header("Look Settings")]
     public float mouseSensitivity = 100f;
-    public Transform fpsCam; // Drag Main Camera here
-    private float xRotation = 0f;
+    [Range(-90f, 90f)]
+    public float minLook = -90f;
+    [Range(-90f, 90f)]
+    public float maxLook = 90f;
 
-    [Header("Weapon Bonus (AK Online Style)")]
-    public WeaponSwitcher weaponSwitcher;
-    public float swordSpeedMultiplier = 1.2f;
+    [Header("Ground Check")]
+    public float groundCheckRadius = 0.2f;
+    public LayerMask groundLayers = ~0; // default: everything
 
-    [Header("Animation & Skin")]
-    public Animator skinAnimator;
-    public GameObject thirdPersonCamera;
-    private bool isThirdPerson = false;
+    // internal state
+    Vector3 velocity;
+    float xRotation = 0f;
+    bool isGrounded;
+    float targetHeight;
+    Transform runtimeGroundCheck;
 
-    private Vector3 velocity;
-    private bool isGrounded;
+    void Awake()
+    {
+        if (controller == null) controller = GetComponent<CharacterController>();
+        if (cameraTransform == null && Camera.main != null)
+            cameraTransform = Camera.main.transform;
+
+        // initialize height target from current controller height (or standingHeight)
+        targetHeight = controller != null ? controller.height : standingHeight;
+    }
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
 
-        if (weaponSwitcher == null)
-            weaponSwitcher = GetComponentInChildren<WeaponSwitcher>();
+        // ensure controller center starts consistent with height
+        if (controller != null)
+            controller.center = new Vector3(0f, controller.height / 2f, 0f);
 
-        if (fpsCam == null && Camera.main != null)
-            fpsCam = Camera.main.transform;
-
-        // Start the player a bit above their current position to avoid getting stuck in the floor
-        controller.enabled = false;
-        transform.position += Vector3.up * 0.1f;
-        controller.enabled = true;
+        // if groundCheck not assigned, create a runtime helper at feet
+        if (groundCheck == null)
+        {
+            runtimeGroundCheck = new GameObject("GroundCheckRuntime").transform;
+            runtimeGroundCheck.SetParent(transform);
+            runtimeGroundCheck.localPosition = Vector3.zero;
+            groundCheck = runtimeGroundCheck;
+        }
     }
 
     void Update()
     {
-        // 1. GROUND CHECK
-        // We use a small downward force (-2f) to keep isGrounded true while walking
-        isGrounded = controller.isGrounded;
+        if (controller == null) return; // safety
 
-        if (isGrounded && velocity.y < 0)
+        // --- GROUND CHECK (Physics.CheckSphere is usually more reliable) ---
+        isGrounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayers, QueryTriggerInteraction.Ignore)
+                     || controller.isGrounded;
+
+        if (isGrounded && velocity.y < 0f)
         {
+            // small negative keeps the controller snug to slopes / ground
             velocity.y = -2f;
         }
 
-        // 2. MOUSE LOOK
+        // --- LOOK / MOUSE ---
         HandleLook();
 
-        // 3. MOVEMENT CALCULATION
+        // --- INPUT & MOVEMENT ---
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
-        float moveSpeed = GetCurrentMoveSpeed();
 
-        // Calculate direction
+        // determine current horizontal speed (crouch reduces speed)
+        bool crouchRequested = Input.GetKey(KeyCode.LeftControl);
+        float currentSpeed = crouchRequested ? crouchSpeed : speed;
+
         Vector3 move = transform.right * x + transform.forward * z;
+        controller.Move(move * currentSpeed * Time.deltaTime);
 
-        // 4. JUMPING
+        // --- JUMP ---
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // 5. APPLY GRAVITY
+        // --- CROUCH (smooth interpolation of height & center) ---
+        targetHeight = crouchRequested ? crouchHeight : standingHeight;
+        if (!Mathf.Approximately(controller.height, targetHeight))
+        {
+            // compute previous height to adjust transform so feet stay roughly in place
+            float previousHeight = controller.height;
+            float newHeight = Mathf.Lerp(previousHeight, targetHeight, Time.deltaTime * heightChangeSpeed);
+            controller.height = Mathf.Clamp(newHeight, 0.1f, standingHeight);
+
+            // center should be half the height (works for upright capsule)
+            controller.center = new Vector3(0f, controller.height / 2f, 0f);
+
+            // Move the transform up/down by half the delta so the feet remain near the same world position.
+            // This is conservative: transform adjustment is small because height is interpolated.
+            float heightDelta = controller.height - previousHeight;
+            transform.position += Vector3.up * (heightDelta * 0.5f);
+        }
+
+        // --- GRAVITY & FINAL MOVE ---
         velocity.y += gravity * Time.deltaTime;
-
-        // 6. COMBINED MOVEMENT (The "Anti-Fall" Fix)
-        // We multiply the WASD move by speed and deltaTime, 
-        // then add the vertical velocity multiplied by deltaTime.
-        Vector3 finalMovement = (move * moveSpeed) + velocity;
-        controller.Move(finalMovement * Time.deltaTime);
-
-        // 7. UTILITY & ANIMATION
-        HandleCrouch();
-        HandleViewToggle();
-        UpdateSkinAnimations();
+        controller.Move(velocity * Time.deltaTime);
     }
 
-    private void HandleLook()
+    void HandleLook()
     {
-        if (fpsCam == null) return;
+        if (cameraTransform == null) return;
 
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
 
         xRotation -= mouseY;
-        xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+        xRotation = Mathf.Clamp(xRotation, minLook, maxLook);
 
-        fpsCam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
         transform.Rotate(Vector3.up * mouseX);
     }
 
-    private float GetCurrentMoveSpeed()
+    void OnDrawGizmosSelected()
     {
-        float currentBase = Input.GetKey(KeyCode.LeftControl) ? crouchSpeed : speed;
-
-        if (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1)
+        // show ground check sphere in scene view when object selected
+        if (groundCheck != null)
         {
-            return currentBase * swordSpeedMultiplier;
-        }
-
-        return currentBase;
-    }
-
-    private void HandleCrouch()
-    {
-        if (Input.GetKeyDown(KeyCode.LeftControl))
-            controller.height = crouchHeight;
-
-        if (Input.GetKeyUp(KeyCode.LeftControl))
-            controller.height = standingHeight;
-    }
-
-    private void HandleViewToggle()
-    {
-        if (Input.GetKeyDown(KeyCode.V))
-        {
-            isThirdPerson = !isThirdPerson;
-            if (thirdPersonCamera != null) thirdPersonCamera.SetActive(isThirdPerson);
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
     }
 
-    private void UpdateSkinAnimations()
+    void OnDestroy()
     {
-        if (skinAnimator != null)
+        if (runtimeGroundCheck != null)
         {
-            // Get speed from the controller's actual velocity
-            float horizontalSpeed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
-            skinAnimator.SetFloat("Speed", horizontalSpeed);
-            skinAnimator.SetBool("isGrounded", isGrounded);
+            Destroy(runtimeGroundCheck.gameObject);
         }
     }
 }
