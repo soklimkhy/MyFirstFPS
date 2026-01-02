@@ -1,167 +1,84 @@
 using UnityEngine;
 
-/// <summary>
-/// Improved CharacterController-based player movement:
-/// - Robust ground check (Physics.CheckSphere fallback to controller.isGrounded)
-/// - Smooth crouch (height & center interpolation)
-/// - Guards for missing references
-/// - Keeps feet roughly in place while changing height
-/// - Clear separation of look / movement / gravity
-/// </summary>
-[RequireComponent(typeof(CharacterController))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("References")]
     public CharacterController controller;
-    public Transform cameraTransform; // assign main camera (child) in inspector
-    [Tooltip("A small Transform placed roughly at the player's feet for ground checks. If null, a temporary point will be used.")]
-    public Transform groundCheck;
 
     [Header("Movement Settings")]
     public float speed = 12f;
-    public float gravity = -19.62f;
-    public float jumpHeight = 2f;
-
-    [Header("Crouch Settings")]
-    public float standingHeight = 2f;
-    public float crouchHeight = 1f;
-    public float crouchSpeed = 6f;
-    [Tooltip("Controls how fast the CharacterController height interpolates")]
-    public float heightChangeSpeed = 8f;
+    public float gravity = -25f; // Stronger gravity for FPS feel
+    public float jumpHeight = 2.5f;
 
     [Header("Look Settings")]
     public float mouseSensitivity = 100f;
-    [Range(-90f, 90f)]
-    public float minLook = -90f;
-    [Range(-90f, 90f)]
-    public float maxLook = 90f;
+    public Transform fpsCam;
+    private float xRotation = 0f;
 
-    [Header("Ground Check")]
-    public float groundCheckRadius = 0.2f;
-    public LayerMask groundLayers = ~0; // default: everything
+    [Header("Weapon Bonus")]
+    public WeaponSwitcher weaponSwitcher;
+    public float swordSpeedMultiplier = 1.2f;
 
-    // internal state
-    Vector3 velocity;
-    float xRotation = 0f;
-    bool isGrounded;
-    float targetHeight;
-    Transform runtimeGroundCheck;
+    [Header("Animation")]
+    public Animator skinAnimator;
 
-    void Awake()
-    {
-        if (controller == null) controller = GetComponent<CharacterController>();
-        if (cameraTransform == null && Camera.main != null)
-            cameraTransform = Camera.main.transform;
-
-        // initialize height target from current controller height (or standingHeight)
-        targetHeight = controller != null ? controller.height : standingHeight;
-    }
+    private Vector3 velocity;
+    private bool isGrounded;
 
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
 
-        // ensure controller center starts consistent with height
+        // REPO FIX: Ensure we start slightly above ground to prevent "Collider Snagging"
         if (controller != null)
-            controller.center = new Vector3(0f, controller.height / 2f, 0f);
-
-        // if groundCheck not assigned, create a runtime helper at feet
-        if (groundCheck == null)
         {
-            runtimeGroundCheck = new GameObject("GroundCheckRuntime").transform;
-            runtimeGroundCheck.SetParent(transform);
-            runtimeGroundCheck.localPosition = Vector3.zero;
-            groundCheck = runtimeGroundCheck;
+            controller.stepOffset = 0.3f;
+            controller.skinWidth = 0.08f; // The "Magic" value to stop falling
         }
     }
 
     void Update()
     {
-        if (controller == null) return; // safety
+        // 1. Better Ground Check
+        isGrounded = controller.isGrounded;
 
-        // --- GROUND CHECK (Physics.CheckSphere is usually more reliable) ---
-        isGrounded = Physics.CheckSphere(groundCheck.position, groundCheckRadius, groundLayers, QueryTriggerInteraction.Ignore)
-                     || controller.isGrounded;
-
-        if (isGrounded && velocity.y < 0f)
+        if (isGrounded && velocity.y < 0)
         {
-            // small negative keeps the controller snug to slopes / ground
-            velocity.y = -2f;
+            velocity.y = -2f; // Clamp velocity when touching ground
         }
 
-        // --- LOOK / MOUSE ---
-        HandleLook();
+        // 2. Mouse Look
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        xRotation -= mouseY;
+        xRotation = Mathf.Clamp(xRotation, -90f, 90f);
+        fpsCam.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        transform.Rotate(Vector3.up * mouseX);
 
-        // --- INPUT & MOVEMENT ---
+        // 3. Horizontal Movement
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
-
-        // determine current horizontal speed (crouch reduces speed)
-        bool crouchRequested = Input.GetKey(KeyCode.LeftControl);
-        float currentSpeed = crouchRequested ? crouchSpeed : speed;
+        float moveSpeed = (weaponSwitcher != null && weaponSwitcher.selectedWeapon == 1) ? speed * swordSpeedMultiplier : speed;
 
         Vector3 move = transform.right * x + transform.forward * z;
-        controller.Move(move * currentSpeed * Time.deltaTime);
 
-        // --- JUMP ---
+        // 4. Jumping
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // --- CROUCH (smooth interpolation of height & center) ---
-        targetHeight = crouchRequested ? crouchHeight : standingHeight;
-        if (!Mathf.Approximately(controller.height, targetHeight))
-        {
-            // compute previous height to adjust transform so feet stay roughly in place
-            float previousHeight = controller.height;
-            float newHeight = Mathf.Lerp(previousHeight, targetHeight, Time.deltaTime * heightChangeSpeed);
-            controller.height = Mathf.Clamp(newHeight, 0.1f, standingHeight);
-
-            // center should be half the height (works for upright capsule)
-            controller.center = new Vector3(0f, controller.height / 2f, 0f);
-
-            // Move the transform up/down by half the delta so the feet remain near the same world position.
-            // This is conservative: transform adjustment is small because height is interpolated.
-            float heightDelta = controller.height - previousHeight;
-            transform.position += Vector3.up * (heightDelta * 0.5f);
-        }
-
-        // --- GRAVITY & FINAL MOVE ---
+        // 5. Gravity
         velocity.y += gravity * Time.deltaTime;
-        controller.Move(velocity * Time.deltaTime);
-    }
 
-    void HandleLook()
-    {
-        if (cameraTransform == null) return;
+        // REPO FIX: Combine movement into ONE call to prevent physics tunneling
+        Vector3 finalMovement = (move * moveSpeed) + velocity;
+        controller.Move(finalMovement * Time.deltaTime);
 
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
-
-        xRotation -= mouseY;
-        xRotation = Mathf.Clamp(xRotation, minLook, maxLook);
-
-        cameraTransform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
-        transform.Rotate(Vector3.up * mouseX);
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        // show ground check sphere in scene view when object selected
-        if (groundCheck != null)
+        // 6. Animation
+        if (skinAnimator != null)
         {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
-        }
-    }
-
-    void OnDestroy()
-    {
-        if (runtimeGroundCheck != null)
-        {
-            Destroy(runtimeGroundCheck.gameObject);
+            float horizontalSpeed = new Vector3(controller.velocity.x, 0, controller.velocity.z).magnitude;
+            skinAnimator.SetFloat("Speed", horizontalSpeed);
         }
     }
 }
