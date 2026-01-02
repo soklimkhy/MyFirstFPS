@@ -19,22 +19,23 @@ public class Sword : MonoBehaviour
     public Camera fpsCam;
     public GameObject bloodEffectPrefab;
 
-    // Your specific coordinates
-    private Vector3 idlePos = new Vector3(0.33f, -0.04f, 0.8f);
-    private Quaternion idleRot = Quaternion.Euler(0, 0, 1);
+    // These will store your EXACT Inspector values automatically
+    private Vector3 idlePos;
+    private Quaternion idleRot;
 
     void Start()
     {
-        // Force the sword to your exact positions at start
-        transform.localPosition = idlePos;
-        transform.localRotation = idleRot;
+        // This is the "Magic" line: it remembers your 0.33, -0.04, 0.8 setup
+        idlePos = transform.localPosition;
+        idleRot = transform.localRotation;
+
         if (fpsCam == null) fpsCam = Camera.main;
     }
 
     void Update()
     {
-        // Continuously smooth back to idle when not attacking
-        if (Time.time >= nextAttackTime - (attackRate * 0.5f))
+        // Smoothly return to your custom Inspector position
+        if (Time.time >= nextAttackTime - (attackRate * 0.4f))
         {
             transform.localPosition = Vector3.Lerp(transform.localPosition, idlePos, Time.deltaTime * returnSpeed);
             transform.localRotation = Quaternion.Slerp(transform.localRotation, idleRot, Time.deltaTime * returnSpeed);
@@ -50,33 +51,32 @@ public class Sword : MonoBehaviour
             PerformRaycast(lightDamage, lightRange);
             nextAttackTime = Time.time + attackRate;
         }
-        // Right Click: Power Stab/Heavy
+        // Right Click: Heavy Attack
         else if (Input.GetButtonDown("Fire2"))
         {
             StopAllCoroutines();
             StartCoroutine(SlashAnimation(true));
             PerformRaycast(heavyDamage, heavyRange);
-            nextAttackTime = Time.time + attackRate * 1.8f;
+            nextAttackTime = Time.time + attackRate * 1.5f;
         }
     }
 
-    // This makes the sword follow a "curved" path rather than a straight line
     IEnumerator SlashAnimation(bool isHeavy)
     {
         float t = 0;
-        float duration = isHeavy ? 0.3f : 0.15f;
+        float duration = isHeavy ? 0.25f : 0.15f;
 
-        // Peak Position (Where the sword goes mid-swing)
+        // Moves RELATIVE to your custom position
+        // We move it forward (Z) and to the left (X) to create a slash motion
         Vector3 peakPos = isHeavy ?
-            idlePos + new Vector3(-0.5f, -0.2f, 0.5f) : // Heavy: Deep thrust forward
-            idlePos + new Vector3(-0.4f, 0.2f, 0.2f);   // Light: Wide sideways arc
+            idlePos + new Vector3(-0.6f, 0.2f, 0.4f) : // Heavy: Bigger movement
+            idlePos + new Vector3(-0.4f, 0.1f, 0.2f);  // Light: Smaller movement
 
-        // Peak Rotation
+        // Rotates RELATIVE to your custom rotation
         Quaternion peakRot = isHeavy ?
-            Quaternion.Euler(80, -40, 0) :  // Heavy: Pointing down-forward
-            Quaternion.Euler(0, 90, 45);    // Light: Tilted horizontal
+            idleRot * Quaternion.Euler(60, -40, -30) :
+            idleRot * Quaternion.Euler(20, -60, 20);
 
-        // 1. SWING OUT
         while (t < 1)
         {
             t += Time.deltaTime * (1 / duration) * swingSpeed;
@@ -84,11 +84,7 @@ public class Sword : MonoBehaviour
             transform.localRotation = Quaternion.Slerp(idleRot, peakRot, t);
             yield return null;
         }
-
-        // 2. SHORT PAUSE (Impact feel)
         yield return new WaitForSeconds(0.05f);
-
-        // (The Update() function will handle Lerping back to idlePos automatically)
     }
 
     void PerformRaycast(float dmg, float range)
